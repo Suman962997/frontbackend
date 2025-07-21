@@ -89,7 +89,7 @@ const RouterConfig = createBrowserRouter([
                 path: 'questionnaire',
                 element:
                     // <ProtectedRoute>
-                    <Questionnaire />
+                    <Questionnaire putdata={[]}/>
                 // </ProtectedRoute>
             },
             {

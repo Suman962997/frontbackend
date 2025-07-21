@@ -73,7 +73,7 @@ export const allCategories = [
             choices: null, isMandatory: true,
           },
           {
-            text: "E-mail", choices: null, isMandatory: true
+            text: "Email", choices: null, isMandatory: true
           },
           { text: "Telephone", choices: null, isMandatory: true },
           { text: "Website", choices: null, isMandatory: true },

@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react'
 import * as XLSX from 'xlsx';
-import { Progress, Tooltip } from 'antd'
+import { Progress, Tooltip , message} from 'antd'
 import Loader from '../../component/loader/Loader'
-import { ArrowLeftOutlined, DeleteOutlined, EditOutlined, PlusOutlined, UnorderedListOutlined,DownOutlined } from '@ant-design/icons'
+import { ArrowLeftOutlined, DeleteOutlined, EditOutlined, PlusOutlined, UnorderedListOutlined,DownloadOutlined } from '@ant-design/icons'
+
 import { bgColor, primaryColor } from '../../style/ColorCode';
 import CustomTable from '../../component/table/CustomTable'
 import CustomButton from '../../component/buttons/CustomButton'
@@ -13,7 +14,12 @@ import MeterCard from '../../component/cards/MeterCard';
 import CircularChart from '../../component/circlepercentagechart/CircleChart';
 import SectionB from './SectionB';
 import SectionC from './SectionC';
+import { fetchReportList } from '../questionnaire/report_list';
+
+
 const Report: React.FC = () => {
+    const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
+
   const columns = [
     {
       title: "Name",
@@ -65,6 +71,7 @@ const Report: React.FC = () => {
       render: (index: number, record: any) => (
         <Tooltip
           color={bgColor}
+          trigger={'click'}
           placement="leftBottom"
           className="custom-tooltip"
           title={
@@ -73,7 +80,7 @@ const Report: React.FC = () => {
                 <UnorderedListOutlined className="list-icon" />
                 <div>View details</div>
               </div>
-              <div className="menu-item" role="button" >
+              <div className="menu-item" role="button" onClick={()=>edit_pdf_report(index)}>
                 <EditOutlined className="edit-icon" />
                 <div>Edit item</div>
               </div>
@@ -81,7 +88,12 @@ const Report: React.FC = () => {
                 <DeleteOutlined className="delete-icon" />
                 <div>Delete item</div>
               </div>
+              <div className="menu-item" role="button" onClick={() => download_pdf_report(index)}>
+                <DownloadOutlined className="delete-icon" />
+                <div>Download pdf</div>
+              </div>
             </div>
+          
           }>
 
           <div className="action-menu">
@@ -102,33 +114,82 @@ const Report: React.FC = () => {
   const [addData, setAddData] = useState<any>(null);
   const [compliantPercentage, setCompliantPercentage] = useState<number>(0);
   const [nonCompliantPercentage, setNonCompliantPercentage] = useState<number>(0);
-  const [texts,setTexts]= useState<{ [key: string]: any }>({});
+  const [dataarr,setDataarr]=useState([]);
 
-  
 
-    const handlePost = async () => {
-    try {
-      const response = await fetch('http://127.0.0.1:5000/submit', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(texts),
-      });
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
+const edit_pdf_report = async (index:any) => {
+  console.log("This is index",index.name)
+  console.log("datas",data)
+  try {
+    const response = await fetch(`http://127.0.0.1:1000/edit_pdf_report/${encodeURIComponent(index.name)}`, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+      },
+    });
 
-      const data = await response.json();
-      console.log('Response:', data);
-    } catch (error) {
-      console.error('Error posting data:', error);
+    if (!response.ok) {
+      throw new Error(`HTTP Status: ${response.status}`);
     }
-  };
+    
+
+
+    const data = await response.json();
+    console.log("Response section:", data.section);
+    console.log("Response data:", data.data);
+    // message.success(`${data.table} downloaded successfully!`);
+    setAddData(data.section)
+    setDataarr(data.data)
+    handleReport(true)
+
+  } catch (error) {
+    console.error("Fetch error:", error);
+  }
+};
 
 
 
+const download_pdf_report = async (index: any) => {
+  console.log("Downloading PDF for:", index.name);
+
+  try {
+    const response = await fetch(`http://127.0.0.1:1000/download_pdf_report/${encodeURIComponent(index.name)}`, {
+      method: "GET",
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP Status: ${response.status}`);
+    }
+    // Get the PDF blob
+    const blob = await response.blob();
+
+    // Extract filename from Content-Disposition header
+    const contentDisposition = response.headers.get("Content-Disposition");
+    let fileName = index.name+".pdf";
+    if (contentDisposition) {
+      const match = contentDisposition.match(/filename="?([^"]+)"?/);
+      if (match && match[1]) {
+        fileName = match[1];
+      }
+    }
+
+    // Create a blob link and click it to trigger download
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(url);
+
+    message.success(`${fileName} downloaded successfully!`);
+  } catch (error) {
+    console.error("Download error:", error);
+    message.error("Failed to download PDF.");
+  }
+};
 
   
   const handleAddData = (sectionType: string) => [
@@ -162,25 +223,38 @@ const Report: React.FC = () => {
         } catch (error) {
           console.error("Invalid file format", error instanceof Error ? error.message : error);
         }
-      };
+      }
 
       reader.readAsArrayBuffer(file);
     };
 
     input.click();
   };
+
+
   useEffect(() => {
-    fetch('/report-data.json')
-      .then((response) => response.json())
-      .then((data) => {
-        setData(data)
+  const loadReportData = async () => {
+    try {
+      const reportData = await fetchReportList(); // your FastAPI call
+      if (reportData) {
+        setData(reportData);
         setLoading(false);
-      })
-      .catch((error) => {
-        console.error('Error fetching the data:', error)
-        setLoading(true);
-      });
-  }, []);
+      } else {
+        console.error('Error fetching the data:')
+        setLoading(false);
+
+      }
+    } catch (error) {
+      console.error("Error fetching report list:", error);
+      setLoading(true); // optionally set to false if you want to show error instead of loader
+    }
+  };
+
+  loadReportData();
+}, []);
+
+
+
 
   const handleReport = (item: boolean) => {
     setIsReport(item)
@@ -198,7 +272,9 @@ const Report: React.FC = () => {
             label={'Add New Reports'} onClick={() => handleReport(true)} type="primary" icon={<PlusOutlined />} disabled={false}
           />
         </div>
+        
       }
+
       {!isReport &&
         <div className='report-table'>
           <CustomTable
@@ -296,22 +372,6 @@ const Report: React.FC = () => {
               </div>
 
 
-              <div className={`section-card`}
-                onClick={() => handlePost()}>
-                <div className="pdf-card">
-                  <div className='xbrl-header'>DOWNLOAD PDF </div>
-                </div>
-                <div>
-                  <CustomPdfButton
-                    label="PDF"
-                    type="primary"
-                    // disabled={addData === 'section_c'}
-                    // icon={<ArrowLeftOutlined style={{ transform: 'rotate(-90deg)' }} />}
-                    icon={<DownOutlined/>}       
-                  />
-                </div>
-              </div>
-
             </div>
             <div className="progress-cards">
               <div className='progress-card'>
@@ -344,7 +404,7 @@ const Report: React.FC = () => {
           </div>
           
           {addData === "section_a" &&
-            <Questionnaire />
+            <Questionnaire putdata={dataarr}/>
           }
           {addData === "section_b" &&
             <SectionB />

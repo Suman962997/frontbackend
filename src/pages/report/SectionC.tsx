@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { ArrowLeftOutlined, BoldOutlined, CheckOutlined, CopyTwoTone, DeleteOutlined, FileAddTwoTone } from "@ant-design/icons";
-import { Card, Input, List, Modal, Progress, Space, Table, Tooltip, Upload, message,Radio } from "antd";
+import { Card, Input, List, Modal, Progress, Space, Table, Tooltip, Upload, message,Radio ,Form} from "antd";
 import CustomButton from "../../component/buttons/CustomButton";
 import { allCategories3 } from "../../utils/Options3";
 import { primaryColor } from '../../style/ColorCode';
@@ -79,6 +79,9 @@ const SectionC: React.FC = () => {
     const [isUnsavedModalVisible, setIsUnsavedModalVisible] = useState(false);
     const [pendingAction, setPendingAction] = useState<() => void | null>();
     const [submittedAnswers, setSubmittedAnswers] = useState<Record<string, boolean>>({});
+    const [questionAnswerMap, setQuestionAnswerMap] = useState<Record<string, string>>({}); 
+    const [texts,setTexts]= useState<{ [key: string]: any }>({});
+    const [rdata,setRdata]= useState<{ [key: string]: any }>({}); 
     const [gm, setGm] = useState<any>(null);
     const [pdf, setPdf] = useState<File | null>(null);
     const [selectedId, setSelectedId] = useState<number | null>(null);
@@ -121,6 +124,7 @@ const SectionC: React.FC = () => {
         });
 
     };
+    
 
     const handleNextSection = () => {
         setCurrentSectionIndex((prev) => Math.min(prev + 1, allCategories3[0].questions.length - 1));
@@ -130,14 +134,24 @@ const SectionC: React.FC = () => {
         setCurrentSectionIndex((prev) => Math.max(prev - 1, 0));
     };
 
-    const handleInputChange = (section: string, key: string, value: any, questionIndex: number) => {
-        console.log("*",section,"*",key,"*",value,"*",questionIndex)
+    const handleInputChange = (section: string, key: string, value: any, questionIndex: number ,text:string) => {
+        // console.log("*",section,"*",key,"*",value,"*",questionIndex)
+        const questionKey = generateQuestionKey(section, key, questionIndex);
         
-        const questionKey = `${section}-${key}-${questionIndex}`;
+        // const questionKey = `${section}-${key}-${questionIndex}`;
         setAnswers((prevAnswers) => ({
             ...prevAnswers,
             [questionKey]: value,
         }));
+
+
+        
+const question = generateQuestion(text);
+      setTexts((prevText) => ({
+    ...prevText,
+    [question]: value,
+}));
+
 
         setHasUnsavedChanges(answers[questionKey] === "" ? false : true);
     };
@@ -473,6 +487,48 @@ const SectionC: React.FC = () => {
         return [];
     };
 
+
+console.log("*****",texts)
+
+const handlePost = async () => {
+    try {
+    const bodyData = {
+      texts: Object.keys(rdata).length > 0 ? rdata : texts,
+      sectionfind: "section_c"  // Replace with your actual section identifier
+    };
+
+      const response = await fetch('http://127.0.0.1:1000/submit', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        // body: JSON.stringify(texts),
+        body: JSON.stringify(bodyData),
+
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log('Response:', data);
+      if (data!=null){
+    message.success(`${data} form submited sucessfully!`);
+      }
+      else{
+        message.warning("upload file!")
+      }
+
+
+
+    } catch (error) {
+      console.error('Error posting data:', error);
+    }
+  };
+
+
+
     const handleFileUpload = async (info: any, questionKey: string,principleKey:string) => {
         const { file } = info;
         setGm(info)
@@ -491,10 +547,19 @@ const SectionC: React.FC = () => {
                 method: 'POST',
                 body: formData,
             });
+            console.log("Received response status:", response.status);
 
             if (!response.ok) throw new Error('Upload failed');
 
             const responseData = await response.json();
+
+            console.log("Parsed response data:", responseData);
+            const responseText = await response.text();
+            console.log("Raw response text:", responseText);
+
+            
+
+            
 
             // Ensure we have an array of sections
             const apiData = Array.isArray(responseData.data)
@@ -503,7 +568,7 @@ const SectionC: React.FC = () => {
 
             // Transform the API response to our answer format
             const newAnswers = transformApiResponseToAnswers(apiData);
-            console.log("answer",newAnswers)
+            // console.log("answer",newAnswers)
             // Update state with the new answers
             setAnswers(prev => {
                 const updatedAnswers = { ...prev, ...newAnswers };
@@ -689,6 +754,8 @@ const SectionC: React.FC = () => {
         });
     };
 
+
+    
 const handleCategoryClick = (categoryKey: string, id: number) => {
   if (!pdf) {
     message.warning("Please upload a PDF before selecting a principle.");
@@ -734,6 +801,29 @@ console.log("#")
     handleClearUnsubmittedAnswers();
   });
 };
+
+const generateQuestionKey = (section: string, key: string, index: number): string => {
+        return `${section}_${key}_${index}`.toLowerCase();
+    };
+
+const generateQuestion = (text: string): string => {
+        return `${text}`.toLowerCase();
+    };
+
+const cleanAnswerKeys = (answers: { [key: string]: any }) => {
+        const cleaned: { [key: string]: any } = {};
+
+        Object.entries(answers).forEach(([key, value]) => {
+            const cleanKey = key.toLowerCase().replace(/-/g, '_');
+            if (!cleaned[cleanKey]) {
+                cleaned[cleanKey] = value;
+            }
+        });
+
+        return cleaned;
+    };
+
+
 
 
     useEffect(() => {
@@ -805,9 +895,9 @@ console.log("#")
         if (isViewMode && !isAnswered) {
             return null;
         }
-        console.log("questions",question)
-        console.log("ww",answers,questionKey)
-         console.log("@@@",answers[`${section}_${key}_${questionIndex}`])
+        // console.log("questions",question)
+        // console.log("ww",answers,questionKey)
+        //  console.log("@@@",answers[`${section}_${key}_${questionIndex}`])
         if (question?.type === 'table') {
             return (
                 <div>
@@ -839,7 +929,7 @@ console.log("#")
                             header={"S.No"}
                             value={answers[`${section}_${key}_${questionIndex}`] || []}
                             onChange={(value: any) =>
-                                handleInputChange(section, key, value, questionIndex)
+                                handleInputChange(section, key, value, questionIndex,question.text)
                             }
                         />
                     </div>
@@ -875,10 +965,9 @@ console.log("#")
                             <TextArea
                                 rows={3}
                                 placeholder="Type your answer here"
+                                size="small"
+                                onChange={(e) => handleInputChange(section, key, e.target.value, questionIndex,question.text)}
                                 value={answers[`${section}_${key}_${questionIndex}`] || ""}
-                                // size="small"
-                                onChange={(e) => handleInputChange(section, key, e.target.value, questionIndex)}
-                                // value={answers[questionKey]}
                             />
 
                         </div>
@@ -891,7 +980,7 @@ console.log("#")
                             }))}
                             placeholder="Select options"
                             value={answers[questionKey] || []}  // Ensure we handle undefined/null
-                            onChange={(value) => handleInputChange(section, key, value, questionIndex)}
+                            onChange={(value) => handleInputChange(section, key, value, questionIndex,question.text)}
                         />
                     ) : (
                         <div className="question-options">
@@ -901,7 +990,7 @@ console.log("#")
                                         <Radio
                                             value={option}
                                             checked={answers[questionKey] === option}
-                                            onChange={() => handleInputChange(section, key, option, questionIndex)}
+                                            onChange={() => handleInputChange(section, key, option, questionIndex,question.text)}
                                             className="radio-qbutton"
                                         >
                                             {option}
@@ -1018,16 +1107,13 @@ console.log("#")
                         }
                         bordered
                     >
-                        {
-                            questions?.question.map((q: any, idx: any) => {
+                        { questions?.question.map((q: any, idx: any) => {
                                 return (
                                     <div key={`${questions.key}-${idx}`}>
                                         {renderQuestionInput(activeCategory, questions.key, q, idx, questions.question, questions.section)}
-                                    </div>
-                                );
-                            })
+                                    </div>);})
                         }
-
+                        <CustomButton onClick={handlePost} label="SUBMIT" />
                     </Card >
                 </div >
                 {/* )
